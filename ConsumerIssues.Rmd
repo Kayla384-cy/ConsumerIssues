@@ -1,0 +1,61 @@
+install.packages("sqldf")
+install.packages("openxlsx")
+
+library(sqldf)
+library(ggplot2)
+library(dplyr)
+library(readr)
+library(openxlsx)
+
+consumer <- read.csv("C:/Users/kayla/Documents/Datasets/consumer.csv")
+
+```{r}
+#use left join to merge total (total number of companies) otherwise it will only count those outputted by where clause
+#Percentage rate of untimely response by company
+Responsiveness <- sqldf("SELECT c1.Company, c2.Total, c1.[Timely.response.], COUNT(c1.[Timely.response.]), count(c1.[Timely.response.])*100/c2.Total As [Percentage of No Response] 
+                  FROM consumer c1 
+                  LEFT JOIN (SELECT Company, COUNT(*) AS Total FROM consumer GROUP BY Company) c2 
+                  ON c1.Company = c2.Company 
+                  WHERE c1.[Timely.response.] ='No' 
+                  GROUP BY c1.Company, c2.Total 
+                  ORDER BY [Percentage of No Response]  desc, c1.Company")
+
+write.xlsx(Responsiveness, "Reponsiveness.xlsx")
+                  
+#Count of Response types for each issue type
+comp_resp <- sqldf("Select Issue, [Company.response.to.consumer], count([Company.response.to.consumer]) from consumer group by Issue, [Company.response.to.consumer] order by count([Company.response.to.consumer]) desc, Issue")
+
+write.xlsx(comp_resp, "comp_resp.xlsx")
+
+#Percentage rate of Company response based on mode of submission
+submission <- sqldf("Select a.[Submitted.via], a.[Company.response.to.consumer], count(a.[Company.response.to.consumer]) as [Number of Responses], b.[Total for category], Round((count(a.[Company.response.to.consumer])*100.0/b.[Total for category]), 2) as Percentage 
+          from consumer a
+          Left join (Select [Submitted.via], count(*) as [Total for category] from consumer Group by [Submitted.via]) b   
+          on a.[Submitted.via] = b.[Submitted.via]
+          group by a.[Company.response.to.consumer], a.[Submitted.via] 
+          order by a.[Submitted.via], Percentage desc ")
+          
+
+#Count/Tally of Issue type based on Sub Product under each Product category         
+Products <- sqldf("Select Product, [Sub.product], Issue, count(Issue) from consumer group by Issue, [Sub.product] order by count(Issue) desc, Product")
+
+write.xlsx(Products, "Products.xlsx")
+
+Product_Ranking <- sqldf("Select Product, count(Issue) from consumer group by Product order by count(Issue) desc")
+write.xlsx(Product_Ranking, "Product_Ranking.xlsx")
+
+#Ranking of issue types for each product and sub product for each company
+Issue_Ranking <- sqldf("Select Company, Product, [Sub.product], Issue, count(Issue) from consumer group by Company, Issue order by Company, count(Issue) desc")
+write.xlsx(Issue_Ranking, "Issue_Ranking.xlsx")
+
+
+
+```
+
+
+#ggplot showing how submission type impacts whether issues are resolved
+ggplot(data = submission, aes(x = Submitted.via, y = Percentage, col = Company.response.to.consumer)) +
+  geom_point() +
+  labs(title = "Percentage of Each Consumer Response for Each Submission Type",
+       x = "Submission Type",
+       y = "Percentage")
